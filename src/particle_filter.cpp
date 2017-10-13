@@ -20,14 +20,16 @@
 using namespace std;
 
 void ParticleFilter::init(double x, double y, double theta, double std[]) {
-    
+        //Adding Noise distributions
         default_random_engine gen;
         normal_distribution<double> dist_x(x, std[0]);
         normal_distribution<double> dist_y(y, std[1]);
         normal_distribution<double> dist_t(theta, std[2]);
-                                           
+    
+        //Number of particles
         num_particles = 100;
-        
+    
+        //Initializing particles location and orientation with distributions
         for(int i = 0;i<num_particles;i++){
             weights.push_back(1);
             Particle p;
@@ -37,17 +39,19 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
             p.weight = 1.0;
             particles.push_back(p);
         }
-        
+    
+        //Setting initialization to true
         is_initialized = true;
 }
 
 void ParticleFilter::prediction(double delta_t, double std_pos[], double velocity, double yaw_rate) {
-
+    //Gaussian Noise Distributions
     default_random_engine gen;
     normal_distribution<double> dist_x(0, std_pos[0]);
     normal_distribution<double> dist_y(0, std_pos[1]);
     normal_distribution<double> dist_t(0, std_pos[2]);
     
+    //Prediction for yaw_rate greater than ~0
     if(fabs(yaw_rate)>.001){
         for(int i = 0;i<num_particles;i++){
             double px = particles[i].x;
@@ -59,6 +63,8 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
             particles[i].theta = pt + yaw_rate*delta_t + dist_t(gen);
             }
     }
+    
+    //Prediction for yaw_rate = 0
     else{
         for(int i = 0;i<num_particles;i++){
             double px = particles[i].x;
@@ -87,47 +93,56 @@ void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::ve
 
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], 
 		const std::vector<LandmarkObs> &observations, const Map &map_landmarks) {
-    
+   
+    //For each particle weights will be updates
+    //Steps to be taken: Select particle; Transform observation to Map Coordinate; Associate nearest neighbor after transformation using map landmarks; find probability using multi variable gaussian distribution
     for (int i=0; i < num_particles; i++) {
-
+        //Particle selected
         double px = particles[i].x;
         double py = particles[i].y;
         double pt = particles[i].theta;
         long double probw = 1.0;
         
         for (int j=0; j < observations.size(); j++) {
-            
+            //Observation selected
             double ox = observations[j].x;
             double oy = observations[j].y;
+            //Map coordination transform
             double pmx = ox*cos(pt) - oy*sin(pt) + px;
             double pmy = ox*sin(pt) + oy*cos(pt) + py;
             double landmarkx;
             double landmarky;
+            //Nearest neighbor distance placeholder
             double cal_distance = 0.0;
+            //Sensor range defines sensor characteristic distance below which nearest neighbor should be found
             double clo_landmark_dis = sensor_range;
            
             for (int k = 0; k < map_landmarks.landmark_list.size(); k++) {
-        
+                
+                //L2 norm/Euclidean distance for nearest neighbor
                 cal_distance = sqrt(pow(pmx - map_landmarks.landmark_list[k].x_f,2) + pow(pmy - map_landmarks.landmark_list[k].y_f,2));
-        
+                
+                //Distance measurement
                 if (cal_distance < clo_landmark_dis) {
                     clo_landmark_dis = cal_distance;
                     landmarkx = map_landmarks.landmark_list[k].x_f;
                     landmarky = map_landmarks.landmark_list[k].y_f;
                 }
             }
-            
+            //Probability function defining weight
             double prob = .5*exp(-0.5*(pow((pmx - landmarkx)/std_landmark[0],2) + pow((pmy - landmarky)/std_landmark[1],2)))/M_PI*(std_landmark[0] * std_landmark[1]);
+            
+            //Accumulating all the weights
             probw *= prob;
         }
-        
+        //Updating weights
         particles[i].weight = probw;
         weights[i] = probw;
     }
 }
 
 void ParticleFilter::resample() {
-
+    //This was interesting. Was looking for this function for the quiz. :)
     vector<Particle> resparticles;
     default_random_engine gen;
     
